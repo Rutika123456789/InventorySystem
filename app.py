@@ -14,7 +14,7 @@ db = mysql.connector.connect(
 cursor = db.cursor()
 
 
-# HOME PAGE
+# HOME PAGE + SEARCH + ADD
 @app.route("/", methods=["GET", "POST"])
 def home():
     if request.method == "POST":
@@ -27,7 +27,15 @@ def home():
         cursor.execute(sql, values)
         db.commit()
 
-    cursor.execute("SELECT * FROM items")
+        return redirect("/")
+
+    search_query = request.args.get("search")
+
+    if search_query:
+        cursor.execute("SELECT * FROM items WHERE name LIKE %s", ('%' + search_query + '%',))
+    else:
+        cursor.execute("SELECT * FROM items")
+
     items = cursor.fetchall()
 
     return render_template("index.html", items=items)
