@@ -13,25 +13,8 @@
             color: #333;
         }
 
-        form {
+        .top-bar {
             margin-bottom: 20px;
-        }
-
-        input {
-            padding: 6px;
-            margin: 5px 0;
-        }
-
-        button {
-            padding: 6px 12px;
-            background-color: #007bff;
-            color: white;
-            border: none;
-            cursor: pointer;
-        }
-
-        button:hover {
-            background-color: #0056b3;
         }
 
         table {
@@ -51,10 +34,6 @@
             color: white;
         }
 
-        tr:hover {
-            background-color: #f1f1f1;
-        }
-
         .low-stock {
             color: red;
             font-weight: bold;
@@ -64,25 +43,25 @@
             color: green;
         }
 
-        .actions a {
-            margin: 0 5px;
+        a {
             text-decoration: none;
+            margin: 0 5px;
         }
 
-        .search-box {
-            margin-bottom: 20px;
+        button {
+            padding: 6px 12px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            cursor: pointer;
         }
     </style>
 </head>
 <body>
 
-    <h1>Inventory Management System</h1>
-
-    <div class="search-box">
-        <form method="GET">
-            <input type="text" name="search" placeholder="Search by name">
-            <button type="submit">Search</button>
-        </form>
+    <div class="top-bar">
+        <h1>Inventory Management System</h1>
+        <p>Welcome, {{ user }} | <a href="/logout">Logout</a></p>
     </div>
 
     <h3>Add Equipment</h3>
@@ -121,7 +100,7 @@
                     <span class="ok-stock">OK</span>
                 {% endif %}
             </td>
-            <td class="actions">
+            <td>
                 <a href="/edit/{{ item[0] }}">Edit</a>
                 <a href="/delete/{{ item[0] }}" onclick="return confirm('Are you sure?')">Delete</a>
             </td>
