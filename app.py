@@ -5,6 +5,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 app = Flask(__name__)
 app.secret_key = "supersecretkey"
 
+
 # DATABASE CONNECTION
 def get_db_connection():
     return mysql.connector.connect(
@@ -14,16 +15,20 @@ def get_db_connection():
         database="inventory_system"
     )
 
-# CREATE ADMIN IF NOT EXISTS (WITH HASHED PASSWORD)
-def create_admin():
+
+# FORCE RESET ADMIN USER (CLEAN STATE)
+def reset_admin():
     conn = get_db_connection()
     cursor = conn.cursor()
 
-    hashed_password = generate_password_hash("admin123", method='pbkdf2:sha256')
+    # Delete old admin completely
+    cursor.execute("DELETE FROM users WHERE username = %s", ("admin",))
 
+    # Create new hashed admin
+    hashed_password = generate_password_hash("admin123")
 
     cursor.execute("""
-        INSERT IGNORE INTO users (username, password, role)
+        INSERT INTO users (username, password, role)
         VALUES (%s, %s, %s)
     """, ("admin", hashed_password, "admin"))
 
@@ -31,7 +36,9 @@ def create_admin():
     cursor.close()
     conn.close()
 
-create_admin()
+
+reset_admin()
+
 
 # LOGIN PAGE
 @app.route("/", methods=["GET", "POST"])
@@ -56,6 +63,7 @@ def login():
 
     return render_template("login.html")
 
+
 # DASHBOARD
 @app.route("/dashboard")
 def dashboard():
@@ -70,6 +78,7 @@ def dashboard():
     conn.close()
 
     return render_template("index.html", items=items)
+
 
 # ADD ITEM (ADMIN ONLY)
 @app.route("/add", methods=["POST"])
@@ -93,11 +102,13 @@ def add_item():
 
     return redirect(url_for("dashboard"))
 
+
 # LOGOUT
 @app.route("/logout")
 def logout():
     session.clear()
     return redirect(url_for("login"))
+
 
 if __name__ == "__main__":
     app.run(debug=True)
