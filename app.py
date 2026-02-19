@@ -1,129 +1,103 @@
-from flask import Flask, render_template, request, redirect, session
+from flask import Flask, render_template, request, redirect, session, url_for
 import mysql.connector
+from werkzeug.security import generate_password_hash, check_password_hash
 
 app = Flask(__name__)
-app.secret_key = "inventory_secret_key"
+app.secret_key = "supersecretkey"
 
 # DATABASE CONNECTION
-db = mysql.connector.connect(
-    host="localhost",
-    user="root",
-    password="Rutika@16",
-    database="inventory_system"
-)
+def get_db_connection():
+    return mysql.connector.connect(
+        host="localhost",
+        user="root",
+        password="Rutika@16",
+        database="inventory_system"
+    )
 
-cursor = db.cursor()
+# CREATE ADMIN IF NOT EXISTS (WITH HASHED PASSWORD)
+def create_admin():
+    conn = get_db_connection()
+    cursor = conn.cursor()
 
+    hashed_password = generate_password_hash("admin123", method='pbkdf2:sha256')
+
+
+    cursor.execute("""
+        INSERT IGNORE INTO users (username, password, role)
+        VALUES (%s, %s, %s)
+    """, ("admin", hashed_password, "admin"))
+
+    conn.commit()
+    cursor.close()
+    conn.close()
+
+create_admin()
 
 # LOGIN PAGE
-@app.route("/login", methods=["GET", "POST"])
+@app.route("/", methods=["GET", "POST"])
 def login():
     if request.method == "POST":
         username = request.form["username"]
         password = request.form["password"]
 
-        cursor.execute(
-            "SELECT * FROM users WHERE username=%s AND password=%s",
-            (username, password)
-        )
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute("SELECT * FROM users WHERE username=%s", (username,))
         user = cursor.fetchone()
+        cursor.close()
+        conn.close()
 
-        if user:
-            session["user"] = username
-            return redirect("/")
+        if user and check_password_hash(user["password"], password):
+            session["username"] = user["username"]
+            session["role"] = user["role"]
+            return redirect(url_for("dashboard"))
         else:
-            return render_template("login.html", error="Invalid Username or Password")
+            return render_template("login.html", error="Invalid Credentials")
 
     return render_template("login.html")
 
+# DASHBOARD
+@app.route("/dashboard")
+def dashboard():
+    if "username" not in session:
+        return redirect(url_for("login"))
+
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute("SELECT * FROM items")
+    items = cursor.fetchall()
+    cursor.close()
+    conn.close()
+
+    return render_template("index.html", items=items)
+
+# ADD ITEM (ADMIN ONLY)
+@app.route("/add", methods=["POST"])
+def add_item():
+    if session.get("role") != "admin":
+        return "Unauthorized Access"
+
+    name = request.form["name"]
+    quantity = request.form["quantity"]
+    min_quantity = request.form["min_quantity"]
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("""
+        INSERT INTO items (name, quantity, min_quantity)
+        VALUES (%s, %s, %s)
+    """, (name, quantity, min_quantity))
+    conn.commit()
+    cursor.close()
+    conn.close()
+
+    return redirect(url_for("dashboard"))
 
 # LOGOUT
 @app.route("/logout")
 def logout():
-    session.pop("user", None)
-    return redirect("/login")
-
-
-# HOME PAGE
-@app.route("/", methods=["GET", "POST"])
-def home():
-
-    if "user" not in session:
-        return redirect("/login")
-
-    if request.method == "POST":
-        name = request.form["item_name"]
-        quantity = request.form["quantity"]
-        min_quantity = request.form["min_quantity"]
-
-        cursor.execute(
-            "INSERT INTO items (name, quantity, min_quantity) VALUES (%s, %s, %s)",
-            (name, quantity, min_quantity)
-        )
-        db.commit()
-
-        return redirect("/")
-
-    search_query = request.args.get("search")
-
-    if search_query:
-        cursor.execute(
-            "SELECT * FROM items WHERE name LIKE %s",
-            ('%' + search_query + '%',)
-        )
-    else:
-        cursor.execute("SELECT * FROM items")
-
-    items = cursor.fetchall()
-
-    return render_template("index.html", items=items, user=session["user"])
-
-
-# EDIT PAGE
-@app.route("/edit/<int:id>")
-def edit(id):
-
-    if "user" not in session:
-        return redirect("/login")
-
-    cursor.execute("SELECT * FROM items WHERE id=%s", (id,))
-    item = cursor.fetchone()
-
-    return render_template("edit.html", item=item)
-
-
-# UPDATE ITEM
-@app.route("/update/<int:id>", methods=["POST"])
-def update(id):
-
-    if "user" not in session:
-        return redirect("/login")
-
-    name = request.form["item_name"]
-    quantity = request.form["quantity"]
-    min_quantity = request.form["min_quantity"]
-
-    cursor.execute(
-        "UPDATE items SET name=%s, quantity=%s, min_quantity=%s WHERE id=%s",
-        (name, quantity, min_quantity, id)
-    )
-    db.commit()
-
-    return redirect("/")
-
-
-# DELETE ITEM
-@app.route("/delete/<int:id>")
-def delete(id):
-
-    if "user" not in session:
-        return redirect("/login")
-
-    cursor.execute("DELETE FROM items WHERE id=%s", (id,))
-    db.commit()
-
-    return redirect("/")
-
+    session.clear()
+    return redirect(url_for("login"))
 
 if __name__ == "__main__":
     app.run(debug=True)
